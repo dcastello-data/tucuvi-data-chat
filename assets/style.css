@@ -6,10 +6,18 @@
     padding: 0;
 }
 
-/* Title and Headers Styling */
-.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
+.stApp h1 {
     color: #122950 !important; /* Dark blue for headings */
     text-align: center !important; /* Center alignment */
+    font-size: 28px !important;
+    margin: 0 !important; /* Remove extra margin */
+}
+
+/* Title and Headers Styling */
+.stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
+    color: #122950 !important; /* Dark blue for headings */
+    text-align: center !important; /* Center alignment */
+    font-size: 20px !important;
 }
 
 /* Buttons */
@@ -90,4 +98,48 @@
     background-color: transparent !important;
     color: inherit !important;
     box-shadow: 0 0 0px 1000px #f5f8fb inset !important; /* Match your background */
+}
+
+/* KNOWLEDGE CONTENT */
+
+/* Base style for all markdown content */
+.stMarkdown {
+    font-size: 14px !important;
+    color: #122950 !important; /* Dark blue for general text */
+    line-height: 1.5 !important; /* Improved readability */
+}
+
+/* Style for context chunk label */
+.st-chunk-label {
+    font-size: 12px;
+    color: #808080; /* Light gray color */
+    margin-bottom: 5px;
+}
+
+/* General Markdown styling */
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+    font-size: 24px;
+    color: #122950 !important; /* Dark blue for general text */
+    line-height: 1.5 !important; /* Improved readability */
+}
+
+.stMarkdown ol, .stMarkdown ul {
+    font-size: 14px !important;
+    color: #122950 !important; /* Dark blue for general text */
+    line-height: 1.5 !important; /* Improved readability */
+    margin-left: 20px;
+}
+
+.stMarkdown p {
+    font-size: 14px !important;
+    color: #122950 !important; /* Dark blue for general text */
+    line-height: 1.5 !important; /* Improved readability */
+}
+
+.stMarkdown code {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #f5f5f5;
+    color: #d6336c;
+    padding: 2px 4px;
+    border-radius: 4px;
 }

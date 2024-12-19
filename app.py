@@ -243,8 +243,24 @@ def main():
         </script>
         """, unsafe_allow_html=True)
     
-    # Title
-    st.markdown("<h2>Tucuvi Data</h2>", unsafe_allow_html=True)
+    # Create two columns
+    col1, col2 = st.columns([1, 2])  # Divide into 1/3 and 2/3 columns
+    
+    # Title in the first column
+    with col1:
+        st.markdown("<h1 style='margin-bottom: 0;'>Tucuvi Data</h1>", unsafe_allow_html=True)
+    
+    # Description in the second column
+    with col2:
+        st.markdown(
+            """
+            <p style="font-size: 16px; line-height: 1.6; color: #4A4A4A;">
+                When starting a thread, the assistant uses your query to retrieve relevant documentation. To refine or explore further, use 'Continue thread updating knowledge base'. 
+                Begin questions with <code>/tech</code> to access technical documentation on Tucuvi Data and signal that your query requires technical insights.
+            </p>
+            """, 
+            unsafe_allow_html=True
+        )
 
     # Initialize session state
     if "messages" not in st.session_state:
@@ -263,7 +279,7 @@ def main():
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.title("Knowledge Base Chat")
+        st.header("Knowledge Base Chat")
 
         # Buttons
         new_thread_btn = st.button("New thread", key="new_thread_btn")
@@ -321,14 +337,18 @@ def main():
                     )
 
     with col2:
-        st.header("Retrieved Context")
+        st.header("Knowledge Base Chat")
         if st.session_state.context_chunks:
             for i, chunk in enumerate(st.session_state.context_chunks, start=1):
-                st.markdown(f"**Context Chunk {i}:**")
-                st.markdown(f"- **Section:** {chunk['section']}")
-                st.markdown(f"- **File:** {chunk['file']}")
-                st.markdown(chunk['text'])
-                st.markdown("---")
+                # Style for the "Context Chunk" label
+                st.markdown(f'<div class="st-chunk-label">Context Chunk {i}:</div>', unsafe_allow_html=True)
+                # Style for "Section" detail
+                st.markdown(f'<div class="st-chunk-label">- <b>Section:</b> {chunk["section"]}</div>', unsafe_allow_html=True)
+                # Style for "File" detail
+                st.markdown(f'<div class="st-chunk-label">- <b>File:</b> {chunk["file"]}</div>', unsafe_allow_html=True)
+                st.markdown('<div class="st-divider"></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="st-chunk-details">{chunk["text"]}</div>', unsafe_allow_html=True)
+                st.markdown('<div class="st-divider"></div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
