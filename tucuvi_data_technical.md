@@ -689,32 +689,39 @@ This function ensures synchronization between Firestore and BigQuery by updating
 - **Work Units**
 - **Origins**
 - **SMS Data**
+
+### 2. Run LLM classification
+
 - **Conversations Classification**:
-    - Uses OpenAI API to classify conversations based on specific criteria (currently for Valencia C-0042).
+    - Uses OpenAI API to classify conversations based on specific criteria (currently set up for Valencia C-0042).
     - Results are stored in the BigQuery dataset `tucuvi_data`, table `conversations_classification`.
     - The logic is as follows:
-        
-        ```sql
-        ```
-        LÓGICA DE CLASIFICACIÓN CON PARA VALENCIA LLMs
-        
-        1. El paciente no se ha autenticado (bucket = 'no_auth' -> call_output = 'Paciente no identificado'):
-            prompt_no_auth.txt 
-        
-        2. El paciente se ha autenticado, y llega al final de la conversación sin haber entrado en negociación de citas 
-        (bucket='unknown' -> call_output = 'Flujograma no contemplado' AND str_flows_array LIKE "%startscheduleappointment%")
-            prompt_unknown.txt 
-        
-        3. El paciente cuelga en algún momento o la conversación termina sin cita agendada habiendo negociado una cita.
-        (bucket = 'hanged_or_negotiation' 
-            -> call_output = 'Paciente cuelga' 
-            OR str_flows_array LIKE "%startscheduleappointment%" AND call_output != 'Cita agendada'). 
-            prompt_hanged_or_negotiation.txt
-        ```
-        ```
-        
+        1. We query the conversations that we want to classify and assign them a ‘bucket’. We then query the entire transcripts to use them as input for the LLM. (in the code, the query is defined in the folder llm_library). Note: this can contain personal data, so make sure to use mask_data.py accordingly. 
+        2. We classify each conversation through the logic defined in azure_openai.py which will select the prompt according to the bucket.
+    
+    ```sql
+    ```
+    LÓGICA DE CLASIFICACIÓN CON PARA VALENCIA LLMs
+    
+    1. El paciente no se ha autenticado (bucket = 'no_auth' -> call_output = 'Paciente no identificado'):
+        prompt_no_auth.txt 
+    
+    2. El paciente se ha autenticado, y llega al final de la conversación sin haber entrado en negociación de citas 
+    (bucket='unknown' -> call_output = 'Flujograma no contemplado' AND str_flows_array LIKE "%startscheduleappointment%")
+        prompt_unknown.txt 
+    
+    3. El paciente cuelga en algún momento o la conversación termina sin cita agendada habiendo negociado una cita.
+    (bucket = 'hanged_or_negotiation' 
+        -> call_output = 'Paciente cuelga' 
+        OR str_flows_array LIKE "%startscheduleappointment%" AND call_output != 'Cita agendada'). 
+        prompt_hanged_or_negotiation.txt
+    ```
+    ```
+    
 
-### 2. ETL Health Checks
+Note: To fully comprehend this LLM classification or use it to classify conversations in another project, use the notebook `upload_llm_classification.ipynb`
+
+### 3. ETL Health Checks
 
 The function verifies data consistency for critical tables, identifying missing records or discrepancies in key fields.
 
@@ -781,3 +788,103 @@ Key Outputs:
 - **Helper/Metadata Tables:** Additional contextual data such as conversation variables, lists of displayed flows, and other supporting information.
 
 By consolidating this information, the `iteration_tables_script` facilitates clear, reliable, and maintainable data analytics pipelines, supporting informed decision-making and continuous improvement of conversation flows.
+
+# Editing data in BQ
+
+When the data stored in the raw tables in BQ is corrupted or we need to update it, there are different approaches. 
+
+- Taking advantadge of Dataform duplicates logic: When two duplicate records (for example two rows with the same conversation_id) are present in BQ, Dataform will take the one with the latest inserted_at date.
+- Directly updating BQ. This is specially useful for data migrtions (changing the name of an alert), or editing displays.
+    
+    ```sql
+    UPDATE `tucuvi_data.actions`
+    SET action_display = 'Hospitalización'
+    WHERE action_display = 'Re-ingreso hospital'
+    ```
+    
+
+# Valencia: Gestión de la demanda
+
+How are we reporting metrics in Valencia. This is a special project because we need to classify the conversations by analzying the specif flows that the converations went through. 
+
+The ground truth of the metrics we are working with for the project are defined in Dataform, tucuvi_data_pipeline_workspace, model: analytics/personalized/dim_conversations_valencia.sqlx
+
+## Metrics
+
+1. **Authentication Metrics**
+    - **is_correctly_authenticated**: Boolean indicating if the patient was successfully identified.
+        
+        Checked by looking for specific intent/flow patterns that confirm correct authentication and ensuring no invalid SIP flows are present.
+        
+    - **is_authentication_failed**: Boolean indicating the authentication explicitly failed.
+        
+        True if `str_transition_flows` includes `%byeinvalidsip%`.
+        
+    - **authentication_bucket**: Categorizes how authentication concluded:
+        - "Paciente identificado" if successfully authenticated.
+        - "Doble fallback" if conversation ended due to repeated errors or alerts.
+        - "Autenticación fallida" if explicit authentication failure occurred.
+        - "Paciente cuelga" if none of the above conditions are met and the patient presumably hung up.
+2. **Appointment-Related Metrics**
+    - **is_appointment_already_exists**: Checks if the system detected an existing appointment.
+        
+        True if `str_transition_flows` includes `%appointmentexistsinagenda%`.
+        
+    - **is_appointment_confirmed**: Indicates if an appointment was successfully confirmed.
+        
+        True if the confirmation intent was detected and no API errors (`byeapierror`) occurred.
+        
+3. **Call Outcome / Resolution Metrics**
+    - **is_admin_bye**: Indicates if the call ended by sending a message to an administrative desk or in a manner that implies admin intervention.
+        
+        Derived from authenticated calls ending with `messagesenttoadmin` or certain recognized "admin bye" patterns not blocked by known negative conditions.
+        
+    - **is_bye_resolved**: Indicates if the call concluded in a resolved state without sending a message to admin or hitting error states.
+        
+        True if conversation ended with a known set of "bye" patterns representing a resolved scenario (e.g., reminding appointment, no available appointments, etc.) and without API errors or invalid SIP.
+        
+    - **is_silence**: Indicates the call had no user input or engagement.
+        
+        True if `is_answered = FALSE` or `str_intents_array` is NULL.
+        
+    - **is_patient_hanged**: Indicates that the patient presumably hung up before resolution.
+        
+        True if the conversation did not lead to a known resolution, admin escalation, confirmed appointment, or a recognized error, implying the patient disconnected prematurely.
+        
+    - **call_functional_results**: High-level functional categorization of the call’s end state:
+        - "Cita agendada " if an appointment was confirmed.
+        - "Enviada a mostrador" if escalated to admin.
+        - "Gestionada sin mensaje a mostrador" if resolved without admin message.
+        - "Sin gestionar" if none of the above (unresolved).
+4. **Negotiation Metrics**
+    - **negotiation_bucket**: Classifies how appointment negotiation proceeded:
+        - "Sin negociación" if no scheduling attempt occurred.
+        - "Rechaza negociar" if patient refused to schedule.
+        - "Accede a negociar" if patient agreed to schedule.
+        - "Sin negociación - Cuelga sin contestar" if patient hung up without negotiation.
+5. **Detailed Outcome Classification**
+    - **call_output**: A granular, final classification describing the outcome of the call based on `str_transition_flows` and other indicators.Examples include: "Paciente no identificado", "Error - API", "Cita agendada", "Cita cancelada", "Urgencias", "Centro erróneo", "Cita no identificada", "Negociación fallida", "Paciente cuelga", "No hay citas en los próximos 15 días", etc.
+6. **Unresolved/Error Metrics**
+    - **is_bye_not_resolved**: Indicates if the conversation ended in an unresolved manner due to errors, invalid SIP, an API error, an alert, or the patient hanging up.
+7. **Overall Resolution Bucket**
+    - **call_bucket**: Summarizes calls into "Resuelta" or "No resuelta":
+        - "No resuelta" if the call ended with patient not identified, API errors, or patient hang-up.
+        - "Resuelta" otherwise.
+
+**Extra:**
+
+- **call_reason and call_general_reason**: calculated with the classification of intents detailed here: https://docs.google.com/spreadsheets/d/1SolnvRRNMvWKJoVumFB1RdKMiLfRjwAmgeDtP1W9JEA/edit?gid=874470377#gid=874470377 and building a calculated field in Looker Studio.
+
+## Reporting
+
+We report to the client with the dashboard: Valencia: Gestión de la demanda - es https://lookerstudio.google.com/reporting/f032d814-61af-43b6-9223-e2f2e582a373/page/p_7vwyy4bend/edit
+
+The output of the call is shown with the decorator call_output_reporting, a Looker Studio calculated field that decorates call_output.
+
+## Debugging
+
+For debugging in the Valencia project we use: Valencia: Gestión de la demanda - es https://lookerstudio.google.com/reporting/cfa7c616-ef6c-4080-96af-d7dbadcd3e63/page/p_4kn4vfotnd/edit
+
+In the page ‘Debugging’ we can query the conversations according to the defined Valencia metrics. This is useful to find specific conversations or test the metrics: is the logic correct?
+
+To understand how the LLM classification is performed, please refer to Tucuvi Data Quality.
