@@ -3,6 +3,8 @@ from pinecone import Pinecone
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 import os
+from google_auth_oauthlib.flow import Flow
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -11,6 +13,25 @@ azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
 azure_base_url = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION")
 azure_deployment = "gpt-4o"
+
+CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI_LOCAL = "http://localhost:8501"
+REDIRECT_URI = "https://chat-tucuvi-data.streamlit.app"
+
+# Google Auth Flow
+flow = Flow.from_client_config(
+    {
+        "web": {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [REDIRECT_URI, REDIRECT_URI_LOCAL],
+        }
+    },
+    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"],
+)
 
 INDEX_NAME = "knowledge-base"
 NAMESPACE = "markdown_chunks"
@@ -228,7 +249,51 @@ def process_continue_thread_update(user_input):
     st.session_state.context_chunks = relevant_chunks
     st.session_state.messages.append({"role": "assistant", "content": response})
 
-def main():
+def auth_page():
+    """Authentication Page."""
+    st.set_page_config(page_title="Sign In", layout="centered")
+
+        # Load the CSS
+    with open("assets/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+    st.title("Tucuvi Data Chat")
+    st.subheader("Please sign in with Google to continue.")
+
+    # Initialize Google user in session state
+    if "google_user" not in st.session_state:
+        st.session_state.google_user = None
+
+    # Display Sign-In Button
+    if st.session_state.google_user:
+        st.success(f"Signed in as: {st.session_state.google_user['name']}")
+        st.write(f"Email: {st.session_state.google_user['email']}")
+        if st.button("Continue to App"):
+            st.session_state.page = "app"
+    else:
+        flow.redirect_uri = REDIRECT_URI
+        auth_url, _ = flow.authorization_url(prompt="consent")
+
+        if st.button("Sign in with Google"):
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}" />', unsafe_allow_html=True)
+
+        # Process callback
+        if "code" in st.query_params:
+            query_params = st.query_params
+            flow.fetch_token(authorization_response=query_params["code"][0])
+            credentials = flow.credentials
+            userinfo_response = requests.get(
+                "https://www.googleapis.com/oauth2/v1/userinfo",
+                headers={"Authorization": f"Bearer {credentials.token}"},
+            )
+            userinfo = userinfo_response.json()
+            st.session_state.google_user = {
+                "name": userinfo.get("name"),
+                "email": userinfo.get("email"),
+            }
+            st.experimental_rerun()
+
+def app_page():
     st.set_page_config(page_title="Knowledge Base Chat", layout="wide")
 
     # Load the CSS
@@ -279,7 +344,7 @@ def main():
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.header("Knowledge Base Chat")
+        st.header("Chat")
 
         # Buttons
         new_thread_btn = st.button("New thread", key="new_thread_btn")
@@ -337,7 +402,7 @@ def main():
                     )
 
     with col2:
-        st.header("Knowledge Base Chat")
+        st.header("Retrieved knowledge")
         if st.session_state.context_chunks:
             for i, chunk in enumerate(st.session_state.context_chunks, start=1):
                 # Style for the "Context Chunk" label
@@ -349,6 +414,19 @@ def main():
                 st.markdown('<div class="st-divider"></div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="st-chunk-details">{chunk["text"]}</div>', unsafe_allow_html=True)
                 st.markdown('<div class="st-divider"></div>', unsafe_allow_html=True)
+
+def main():
+    """Main Function to Handle Page Routing."""
+    if "page" not in st.session_state:
+        st.session_state.page = "auth"
+
+    if st.session_state.page == "auth":
+        auth_page()
+    elif st.session_state.page == "app":
+        if "google_user" not in st.session_state or not st.session_state.google_user:
+            st.session_state.page = "auth"
+            st.experimental_rerun()
+        app_page()
 
 if __name__ == "__main__":
     main()

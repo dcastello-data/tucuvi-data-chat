@@ -21,7 +21,17 @@
 }
 
 /* Buttons */
-/* Buttons */
+/* Center container for buttons */
+.center-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%; /* Ensure it takes up the full width */
+    margin-top: 20px; /* Add margin for spacing */
+    padding: 0; /* Remove any default padding */
+}
+
+/* Styling for the button */
 .stApp .stButton > button {
     background-color: #3fd4d0 !important; /* Vibrant green for buttons */
     border: none !important;
