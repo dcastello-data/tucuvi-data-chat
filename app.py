@@ -16,6 +16,10 @@ azure_deployment = "gpt-4o"
 
 CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+USERNAME_ENV = os.getenv("AUTH_USERNAME")
+PASSWORD_ENV = os.getenv("AUTH_PASSWORD")
+
+REDIRECT_URI_LOCAL = "http://localhost:8501"
 REDIRECT_URI_LOCAL = "http://localhost:8501"
 REDIRECT_URI = "https://chat-tucuvi-data.streamlit.app"
 
@@ -253,45 +257,91 @@ def auth_page():
     """Authentication Page."""
     st.set_page_config(page_title="Sign In", layout="centered")
 
-        # Load the CSS
+    # Load the CSS
     with open("assets/style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
     st.title("Tucuvi Data Chat")
-    st.subheader("Please sign in with Google to continue.")
+    st.subheader("Sign in to continue.")
 
-    # Initialize Google user in session state
+    # Initialize session state variables
     if "google_user" not in st.session_state:
         st.session_state.google_user = None
 
-    # Display Sign-In Button
-    if st.session_state.google_user:
-        st.success(f"Signed in as: {st.session_state.google_user['name']}")
-        st.write(f"Email: {st.session_state.google_user['email']}")
-        if st.button("Continue to App"):
-            st.session_state.page = "app"
-    else:
-        flow.redirect_uri = REDIRECT_URI
-        auth_url, _ = flow.authorization_url(prompt="consent")
+    if "auth_user" not in st.session_state:
+        st.session_state.auth_user = None
 
-        if st.button("Sign in with Google"):
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}" />', unsafe_allow_html=True)
+    # Authentication Tabs
+    tab1, tab2 = st.tabs(["Google Sign-In", "Username & Password"])
 
-        # Process callback
-        if "code" in st.query_params:
+    # Google Sign-In
+    with tab1:
+        st.subheader("Sign in with Google")
+        if st.session_state.google_user:
+            st.success(f"Signed in as: {st.session_state.google_user['name']}")
+            st.write(f"Email: {st.session_state.google_user['email']}")
+            if st.button("Continue to App"):
+                st.session_state.page = "app"
+                st.session_state.page = 'app'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
+        else:
+            current_redirect_uri = REDIRECT_URI if st.secrets.get("is_production", False) else REDIRECT_URI_LOCAL
+            flow.redirect_uri = current_redirect_uri
+            auth_url, _ = flow.authorization_url(prompt="consent")
+
+            if st.button("Sign in with Google"):
+                # Redirect to the Google Sign-In URL
+                st.write("Redirecting to Google Sign-In...")
+                import webbrowser
+                webbrowser.open(auth_url)
+                st.session_state.page = 'auth'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False); st.stop()
+
+            # Process the callback after user signs in
             query_params = st.query_params
-            flow.fetch_token(authorization_response=query_params["code"][0])
-            credentials = flow.credentials
-            userinfo_response = requests.get(
-                "https://www.googleapis.com/oauth2/v1/userinfo",
-                headers={"Authorization": f"Bearer {credentials.token}"},
-            )
-            userinfo = userinfo_response.json()
-            st.session_state.google_user = {
-                "name": userinfo.get("name"),
-                "email": userinfo.get("email"),
-            }
-            st.experimental_rerun()
+            if "code" in query_params:
+                auth_code = query_params.get("code", [None])[0]
+                if auth_code:
+                    try:
+                        flow.fetch_token(authorization_response=f"{current_redirect_uri}?code={auth_code}")
+                        credentials = flow.credentials
+                        userinfo_response = requests.get(
+                            "https://www.googleapis.com/oauth2/v1/userinfo",
+                            headers={"Authorization": f"Bearer {credentials.token}"},
+                        )
+                        userinfo = userinfo_response.json()
+                        st.session_state.google_user = {
+                            "name": userinfo.get("name"),
+                            "email": userinfo.get("email"),
+                        }
+                        st.success(f"Welcome, {userinfo.get('name')}!")
+                        st.session_state.page = 'app'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
+                    except Exception as e:
+                        st.error("Google Sign-In failed. Please try again.")
+                        st.write(f"Error details: {e}")
+
+    # Username and Password Authentication
+    with tab2:
+        st.subheader("Sign in with Username & Password")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Sign In"):
+            # Check credentials against environment variables
+            env_user = os.getenv("AUTH_USERNAME")
+            env_password = os.getenv("AUTH_PASSWORD")
+
+            if username == env_user and password == env_password:
+                st.success("Authentication successful!")
+                st.session_state.auth_user = {"username": username}
+                st.session_state.page = "app"
+                st.session_state.page = 'app'; st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
+            else:
+                st.error("Invalid username or password.")
+
+# Navigate to the app if authenticated
+    if st.session_state.get("google_user") or st.session_state.get("auth_user"):
+        st.session_state.page = "app"
+        st.write('Click "Sign in" again to enter!')
+        st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
 
 def app_page():
     st.set_page_config(page_title="Knowledge Base Chat", layout="wide")
@@ -417,16 +467,23 @@ def app_page():
 
 def main():
     """Main Function to Handle Page Routing."""
+    # Initialize session state for page if not set
     if "page" not in st.session_state:
         st.session_state.page = "auth"
 
+    # Handle routing based on the session state
     if st.session_state.page == "auth":
         auth_page()
     elif st.session_state.page == "app":
-        if "google_user" not in st.session_state or not st.session_state.google_user:
+        if "google_user" in st.session_state and st.session_state.google_user:
+            app_page()
+        elif "auth_user" in st.session_state and st.session_state.auth_user:
+            app_page()
+        else:
+            # Redirect to the auth page if no user is authenticated
             st.session_state.page = "auth"
-            st.experimental_rerun()
-        app_page()
+            st.experimental_set_query_params(page="auth")
+            st.stop()
 
 if __name__ == "__main__":
     main()
