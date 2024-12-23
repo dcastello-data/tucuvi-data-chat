@@ -1,41 +1,65 @@
+import os
 import streamlit as st
+from dotenv import load_dotenv
+
+# Import your Authenticator
+from auth import Authenticator
+from auth.authenticator import check_local_auth
+
+# Additional imports for the Knowledge Base Chat
 from pinecone import Pinecone
 from openai import AzureOpenAI
-from dotenv import load_dotenv
-import os
-from google_auth_oauthlib.flow import Flow
 import requests
+from google_auth_oauthlib.flow import Flow
 
-# Load environment variables
+# Configure the Streamlit page inside this app.
+st.set_page_config(page_title="Knowledge Base Chat", layout="wide")
+
+# Load the CSS
+if os.path.exists("assets/style.css"):
+    with open("assets/style.css") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+########################################
+# 1. Load environment variables
+########################################
+
 load_dotenv()
+
+allowed_users = os.getenv("ALLOWED_USERS").split(",")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
 azure_base_url = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION")
-azure_deployment = "gpt-4o"
+azure_deployment = "gpt-4o"  # example deployment name
 
-CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-USERNAME_ENV = os.getenv("AUTH_USERNAME")
-PASSWORD_ENV = os.getenv("AUTH_PASSWORD")
+########################################
+# 2. Initialize Auth
+########################################
 
-REDIRECT_URI_LOCAL = "http://localhost:8501"
-REDIRECT_URI_LOCAL = "http://localhost:8501"
-REDIRECT_URI = "https://chat-tucuvi-data.streamlit.app"
-
-# Google Auth Flow
-flow = Flow.from_client_config(
-    {
-        "web": {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [REDIRECT_URI, REDIRECT_URI_LOCAL],
-        }
-    },
-    scopes=["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"],
+authenticator = Authenticator(
+    allowed_users=allowed_users,
+    token_key=os.getenv("TOKEN_KEY"),
+    secret_path="client_secret.json",
+    redirect_uri="http://localhost:8501",  # Adjust to your URL
 )
+authenticator.check_auth()
+# If not connected, show both Google and local login
+
+def login_page():
+    st.title("Tucuvi Data Chat")
+    """Authentication prompts for Google or Local login."""
+    st.warning("Please log in via Google or local credentials.")
+
+    # 1) Google login
+    authenticator.login()
+
+    # 2) Local login
+    check_local_auth()
+
+########################################
+# 3. Knowledge Base Chat Code
+########################################
 
 INDEX_NAME = "knowledge-base"
 NAMESPACE = "markdown_chunks"
@@ -43,6 +67,7 @@ DIMENSION = 1024
 PINECONE_CLOUD = "aws"
 PINECONE_REGION = "us-east-1"
 
+# Create the Pinecone and Azure OpenAI clients
 pc = Pinecone(api_key=pinecone_api_key)
 index = pc.Index(INDEX_NAME)
 azure_openai_client = AzureOpenAI(
@@ -112,7 +137,7 @@ def build_messages_with_context(system_prompt, conversation_history, context, us
     return messages
 
 def get_last_interactions(messages, user_turns=2, assistant_turns=2):
-    # Extract the last user_assistant messages for history
+    """Get the last user/assistant messages for conversation continuity."""
     last_interactions = []
     reversed_messages = list(reversed(messages))
     user_count = 0
@@ -210,7 +235,6 @@ def process_continue_thread(user_input):
 
 def process_continue_thread_update(user_input):
     """Handle continuing an existing thread and updating the knowledge base."""
-
     # Retrieve knowledge file, cleaned query, and instructions
     knowledge_file, cleaned_query, instructions_file = determine_context_type(user_input)
     st.session_state.knowledge_file = knowledge_file
@@ -220,7 +244,6 @@ def process_continue_thread_update(user_input):
     query_embedding = generate_query_embedding(cleaned_query)
     relevant_chunks = search_pinecone(query_embedding, knowledge_file)
 
-    # Handle empty input
     if not user_input.strip():
         st.session_state.messages.append(
             {"role": "assistant", "content": "Please provide a valid query to continue the thread and update the knowledge base."}
@@ -233,7 +256,6 @@ def process_continue_thread_update(user_input):
         )
         return
 
-    # Prepare updated context
     context_parts = [
         f"Section: {chunk['section']}\nFile: {chunk['file']}\n\n{chunk['text']}"
         for chunk in relevant_chunks
@@ -253,103 +275,12 @@ def process_continue_thread_update(user_input):
     st.session_state.context_chunks = relevant_chunks
     st.session_state.messages.append({"role": "assistant", "content": response})
 
-def auth_page():
-    """Authentication Page."""
-    st.set_page_config(page_title="Sign In", layout="centered")
+def knowledge_base_chat():
+    """
+    This function encapsulates the Knowledge Base Chat UI + logic.
+    Call this from within your app() function after checking that the user is authenticated.
+    """
 
-    # Load the CSS
-    with open("assets/style.css") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-    st.title("Tucuvi Data Chat")
-    st.subheader("Sign in to continue.")
-
-    # Initialize session state variables
-    if "google_user" not in st.session_state:
-        st.session_state.google_user = None
-
-    if "auth_user" not in st.session_state:
-        st.session_state.auth_user = None
-
-    # Authentication Tabs
-    tab1, tab2 = st.tabs(["Google Sign-In", "Username & Password"])
-
-    # Google Sign-In
-    with tab1:
-        st.subheader("Sign in with Google")
-        if st.session_state.google_user:
-            st.success(f"Signed in as: {st.session_state.google_user['name']}")
-            st.write(f"Email: {st.session_state.google_user['email']}")
-            if st.button("Continue to App"):
-                st.session_state.page = "app"
-                st.session_state.page = 'app'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
-        else:
-            current_redirect_uri = REDIRECT_URI if st.secrets.get("is_production", False) else REDIRECT_URI_LOCAL
-            flow.redirect_uri = current_redirect_uri
-            auth_url, _ = flow.authorization_url(prompt="consent")
-
-            if st.button("Sign in with Google"):
-                # Redirect to the Google Sign-In URL
-                st.write("Redirecting to Google Sign-In...")
-                import webbrowser
-                webbrowser.open(auth_url)
-                st.session_state.page = 'auth'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False); st.stop()
-
-            # Process the callback after user signs in
-            query_params = st.query_params
-            if "code" in query_params:
-                auth_code = query_params.get("code", [None])[0]
-                if auth_code:
-                    try:
-                        flow.fetch_token(authorization_response=f"{current_redirect_uri}?code={auth_code}")
-                        credentials = flow.credentials
-                        userinfo_response = requests.get(
-                            "https://www.googleapis.com/oauth2/v1/userinfo",
-                            headers={"Authorization": f"Bearer {credentials.token}"},
-                        )
-                        userinfo = userinfo_response.json()
-                        st.session_state.google_user = {
-                            "name": userinfo.get("name"),
-                            "email": userinfo.get("email"),
-                        }
-                        st.success(f"Welcome, {userinfo.get('name')}!")
-                        st.session_state.page = 'app'; st.write('Navigating...'); st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
-                    except Exception as e:
-                        st.error("Google Sign-In failed. Please try again.")
-                        st.write(f"Error details: {e}")
-
-    # Username and Password Authentication
-    with tab2:
-        st.subheader("Sign in with Username & Password")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Sign In"):
-            # Check credentials against environment variables
-            env_user = os.getenv("AUTH_USERNAME")
-            env_password = os.getenv("AUTH_PASSWORD")
-
-            if username == env_user and password == env_password:
-                st.success("Authentication successful!")
-                st.session_state.auth_user = {"username": username}
-                st.session_state.page = "app"
-                st.session_state.page = 'app'; st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
-            else:
-                st.error("Invalid username or password.")
-
-# Navigate to the app if authenticated
-    if st.session_state.get("google_user") or st.session_state.get("auth_user"):
-        st.session_state.page = "app"
-        st.write('Click "Sign in" again to enter!')
-        st.session_state['force_rerun'] = not st.session_state.get('force_rerun', False)
-
-def app_page():
-    st.set_page_config(page_title="Knowledge Base Chat", layout="wide")
-
-    # Load the CSS
-    with open("assets/style.css") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-    
     st.markdown("""
         <script>
         document.querySelectorAll('input[type="text"]').forEach(input => {
@@ -357,20 +288,22 @@ def app_page():
         });
         </script>
         """, unsafe_allow_html=True)
-    
+
     # Create two columns
     col1, col2 = st.columns([1, 2])  # Divide into 1/3 and 2/3 columns
-    
+
     # Title in the first column
     with col1:
         st.markdown("<h1 style='margin-bottom: 0;'>Tucuvi Data</h1>", unsafe_allow_html=True)
-    
+
     # Description in the second column
     with col2:
         st.markdown(
             """
             <p style="font-size: 16px; line-height: 1.6; color: #4A4A4A;">
-                When starting a thread, the assistant uses your query to retrieve relevant documentation. To refine or explore further, use 'Continue thread updating knowledge base'. 
+                When starting a thread, the assistant uses your query to retrieve relevant documentation. To refine or explore further, use 
+                <i>Continue thread updating knowledge base</i>.
+                <br><br>
                 Begin questions with <code>/tech</code> to access technical documentation on Tucuvi Data and signal that your query requires technical insights.
             </p>
             """, 
@@ -397,7 +330,7 @@ def app_page():
         st.header("Chat")
 
         # Buttons
-        new_thread_btn = st.button("New thread", key="new_thread_btn")
+        new_thread_btn = st.button("New thread")
         continue_thread_btn = st.button("Continue thread")
         continue_thread_update_btn = st.button("Continue thread updating knowledge base")
 
@@ -427,7 +360,7 @@ def app_page():
             st.session_state.clear_input_on_next_run = True
 
         elif user_input.strip() and not st.session_state.action_triggered:
-            # Default behavior: Process input when pressing Enter
+            # Default behavior: if user just presses enter
             if st.session_state.knowledge_file:
                 process_continue_thread(user_input)
             else:
@@ -465,25 +398,14 @@ def app_page():
                 st.markdown(f'<div class="st-chunk-details">{chunk["text"]}</div>', unsafe_allow_html=True)
                 st.markdown('<div class="st-divider"></div>', unsafe_allow_html=True)
 
-def main():
-    """Main Function to Handle Page Routing."""
-    # Initialize session state for page if not set
-    if "page" not in st.session_state:
-        st.session_state.page = "auth"
+########################################
+# 4. The Main App Function
+########################################
 
-    # Handle routing based on the session state
-    if st.session_state.page == "auth":
-        auth_page()
-    elif st.session_state.page == "app":
-        if "google_user" in st.session_state and st.session_state.google_user:
-            app_page()
-        elif "auth_user" in st.session_state and st.session_state.auth_user:
-            app_page()
-        else:
-            # Redirect to the auth page if no user is authenticated
-            st.session_state.page = "auth"
-            st.experimental_set_query_params(page="auth")
-            st.stop()
-
-if __name__ == "__main__":
-    main()
+# Main Logic
+if st.session_state.get("connected", False):
+    # Show the app page once authenticated
+    knowledge_base_chat()
+else:
+    # Show the authentication prompts if not logged in
+    login_page()
