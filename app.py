@@ -9,8 +9,6 @@ from auth.authenticator import check_local_auth
 # Additional imports for the Knowledge Base Chat
 from pinecone import Pinecone
 from openai import AzureOpenAI
-import requests
-from google_auth_oauthlib.flow import Flow
 
 # Configure the Streamlit page inside this app.
 st.set_page_config(page_title="Knowledge Base Chat", layout="wide")
