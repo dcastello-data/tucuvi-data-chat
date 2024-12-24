@@ -257,7 +257,8 @@ def knowledge_base_chat():
 
     # Title in the first column
     with col1:
-        st.markdown("<h1 style='margin-bottom: 0;'>Tucuvi Data</h1>", unsafe_allow_html=True)
+        #st.markdown("<h1 style='margin-bottom: 0;'>Tucuvi Data</h1>", unsafe_allow_html=True)
+        st.image("graphics/logo.png", width=300)
 
     # Description in the second column
     with col2:
