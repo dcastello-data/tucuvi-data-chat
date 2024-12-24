@@ -1,0 +1,37 @@
+cookie:
+  expiry_days: 30
+  key: some_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    dcastello:
+      email: d.castello@tucuvi.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: David Castello
+      password: tucuvi-data
+    marcos:
+      email: marcos@tucuvi.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: Marcos Rubio
+      password: tucuvi-data
+    tucuvi:
+      email: tucuvi@tucuvi.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: Tucuvi
+      password: tucuvi-data
+oauth2:
+  google:
+    client_id: 457348507475-qj2rs65seoc2dmecc2ldhmal1ur3ifqm.apps.googleusercontent.com
+    client_secret: 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
+    redirect_uri: https://chat-tucuvi-data.streamlit.app
+  microsoft:
+    client_id: null
+    client_secret: null
+    redirect_uri: null
+    tenant_id: null
+pre-authorized:
+  emails:
+  - melsby@gmail.com

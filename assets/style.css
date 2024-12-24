@@ -2,8 +2,15 @@
 .stApp {
     background-color: #f5f8fb !important; /* Light light gray background */
     font-family: "Helvetica", sans-serif !important;
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    margin-top: 0px !important;
+}
+
+.stApp .stMainBlockContainer
+{
+    padding: 50px !important;
+    padding-top: 20px !important;
 }
 
 .stApp h1 {

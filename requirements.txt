@@ -1,9 +1,0 @@
-streamlit
-openai
-PyPDF2
-python-dotenv
-pinecone-client
-pyjwt
-extra-streamlit-components==0.1.71
-google-auth-oauthlib==1.2.1
-google-api-python-client==2.149.0
