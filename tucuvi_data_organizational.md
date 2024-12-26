@@ -155,25 +155,7 @@ At a high level, the workflow is as follows:
 
 This integrated system ensures all client data is centralized, processed, and visualized efficiently, driving value and insight for Tucuvi's users.
 
-# Reporting
-
-These dashboards address key questions related to Tucuvi clients and projects, including:
-
-- **How is the company growing?**
-    
-    Track and analyze growth metrics.
-    
-- **Are our active clients performing as expected?**
-    
-    Evaluate client performance against expectations, looking at engagement levels, satisfaction rates, and clinical metrics.
-    
-- **What is the volume of activity of LOLA?**
-    
-    Monitor the volume of LOLA’s activity.
-    
-- **I need to report growth metrics to investors.**
-
-## **Customer Success Dashboard**
+# **Customer Success Dashboard**
 
 **Edit URL:** [https://lookerstudio.google.com/reporting/d7e9ae0c-cabb-4060-bb1c-e42f28dd642e/page/p_lpkoccdzfd](https://lookerstudio.google.com/reporting/d7e9ae0c-cabb-4060-bb1c-e42f28dd642e/page/p_lpkoccdzfd)
 
@@ -185,7 +167,7 @@ This dashboard provides a comprehensive view of customer success metrics, aggreg
 - **Central Metrics:** Focus operational and clinical metrics at either the work unit or protocol level, allowing for side-by-side comparisons and deeper insights into specific segments of the business.
 - **Notifications:** Configure alerts to trigger when operational or clinical metrics fall outside specified thresholds, tracking these trends over the past 30 days to facilitate proactive management.
 
-## **Tucuvi All Time Dashboard**
+# **Tucuvi All Time Dashboard**
 
 **Edit URL:** [https://lookerstudio.google.com/reporting/da65b5f1-56ad-47d3-86f7-083e90714f2d/page/p_lpkoccdzfd](https://lookerstudio.google.com/reporting/da65b5f1-56ad-47d3-86f7-083e90714f2d/page/p_lpkoccdzfd)
 
@@ -198,7 +180,7 @@ This dashboard is designed to present a historical overview of Tucuvi’s perfor
 - **Alerts and Actions:** Examine all-time metrics for alerts detected by LOLA and the subsequent actions recorded in TD. Identify the most frequent alerts and actions over the platform’s entire history.
 - **Feedback:** Review feedback collected by LOLA, including Customer Satisfaction (CSAT) and Net Promoter Score (NPS) surveys, to gain insights into overall satisfaction and areas for improvement.
 
-## **Tucuvi Data Newsletter**
+# **Tucuvi Data Newsletter**
 
 **Edit URL:** [https://lookerstudio.google.com/reporting/ab42de5a-27d0-4b6e-852e-8fb21da6ed53/page/8GjWE/edit](https://lookerstudio.google.com/reporting/ab42de5a-27d0-4b6e-852e-8fb21da6ed53/page/8GjWE/edit)
 
@@ -302,19 +284,19 @@ This dashboard is shared with the client and serves as a reporting tool for metr
 
 This dashboard is shared with the Comunidad de Valencia to track the metrics of the DANA project, an emergency response initiative addressing the impact of a climate disaster. It highlights critical data and progress to support effective disaster management.
 
-# THM usage
+# Tucuvi Dashboard usage
 
-This section provides key insights into the usage patterns of the THM application, answering important questions such as:
+This section provides key insights into the usage patterns of the Tucuvi Dashboard web application, answering important questions such as:
 
-- **How are our users using THM?**
+- **How are our users using Tucuvi Dashboard?**
     
     Analyze user engagement, including the features they interact with and the frequency of their usage.
     
-- **Which users are the most active?**
+- **Which users are the most active in Tucuvi Dashboard?**
     
     Identify the most active users based on their activity levels.
     
-- **How many active users do we have?**
+- **How many active users do we have in Tucuvi Dashboard?**
     
     Track the number of active users over time to understand user base growth and engagement.
     
@@ -330,11 +312,11 @@ This section provides key insights into the usage patterns of the THM applicatio
             5. Completing an intervention
             6. Pausing a call
             7. Deactivating a patient
-- **What is the retention rate of users?**
+- **What is the retention rate of users in Tucuvi Dashboard?**
     
     Measure user retention to evaluate how effectively THM retains its users over time.
     
-- **What do users typically do?**
+- **What do users typically do in Tucuvi Dashboard?**
     
     Explore common user behaviors and interactions within the platform to gain insights into their usage patterns.
     
@@ -343,13 +325,13 @@ This section provides key insights into the usage patterns of the THM applicatio
     Assess the average time it takes healthcare professionals (HCPs) to review a call, helping optimize and improve efficiency in the process.
     
 
-## **THM Analysis**
+## **Tucuvi Dashboard Analysis**
 
 **Edit URL:** [https://lookerstudio.google.com/reporting/c6fe00f8-024f-4f96-b328-932460446eff/page/wJUCE](https://lookerstudio.google.com/reporting/c6fe00f8-024f-4f96-b328-932460446eff/page/wJUCE)
 
 **Embed URL:** [https://lookerstudio.google.com/embed/reporting/c6fe00f8-024f-4f96-b328-932460446eff/page/wJUCE](https://lookerstudio.google.com/embed/reporting/c6fe00f8-024f-4f96-b328-932460446eff/page/wJUCE)
 
-This dashboard is used to monitor all user events executed within the Tucuvi Dashboard. The events tracked in this dashboard are sent via Segment to BigQuery, providing detailed insights into user activity and behavior.
+This Looker Studio report is used to monitor all user events executed within the Tucuvi Dashboard. The events tracked in this dashboard are sent via Segment to BigQuery, providing detailed insights into user activity and behavior.
 
 ## **Care Plans, Phone Visits, and Clinical Notes**
 

@@ -441,7 +441,7 @@ As a general rule, duplicates are managed by selecting a unique identifier, whic
     ```
     
 
-# Tucuvi Dashboard
+# Pipelines: Tucuvi Dashboard
 
 - `thm_pipeline_workspace`: This pipeline process all event information from `tucuvi_dashboard` dataset.
     - Staging tables: dynamically defined
@@ -789,6 +789,116 @@ Key Outputs:
 
 By consolidating this information, the `iteration_tables_script` facilitates clear, reliable, and maintainable data analytics pipelines, supporting informed decision-making and continuous improvement of conversation flows.
 
+# Domains Event Transformer
+
+- **Repository**: [DomainsEventTransformer](https://gitlab.com/tucuvi/tucuvi-data/domaineventstransformer)
+
+This repository aims to provide all the necessary artifacts to create ETLs in a simple and scalable way within the Tucuvi environment. To this end, a software structure has been developed that allows anyone with basic knowledge of Python to create an ETL by following these steps
+
+## Create a new ETL
+
+### 1. Create new Mapper
+
+To define a new mapper, you just need to create a new class that follows the protocol defined by `BaseMapper`. This is a class that implements the `map` method as shown below:
+
+    `def map(self, data: dict[str, Any]) -> MappedEvent:...`
+
+Map method receives a dictionary of type `dict[str, Any]` and returns a `MappedEvent` object. The purpose of this method is to map the domain event into an object that can be persisted (If the event does not follow the correct format, the mapper should throw a EventMalformed exception). In this case, `MappedEvent` is a Python dataclass containing all the information needed to perform persistence in Big Query. But all of this is transparent to the developer. The only thing needed is to pass the following parameters to the constructor:
+
+- `dataset: str
+- table: str
+- data: dict[str, Any]`
+
+The table and dataset parameters are self-explanatory, and the data parameter must be a dictionary in which the keys correspond to the table columns and the values are the values to be persisted. It is important that the data values are JSON serializable.
+
+### 2. Register new event
+
+To register a new event, you first need to include it in the `Event` enum so that the value corresponds with the name of the event in question, as shown in the example:
+
+`class Event(Enum):    AuthenticationIterationFinished: str = "AuthenticationIterationFinished"    RealTimeIterationFinished: str = "RealTimeIterationFinished"`
+
+And finally, you need to associate the event and the mapper using mappers_registry.py. For that, you just need to include a new if statement like the ones shown in the example:
+
+`def get_mapper(self, event: Event) -> BaseMapper:    if event == Event.AuthenticationIterationFinished:        return AuthenticationFinishedMapper()    if event == Event.RealTimeIterationFinished:        return RealTimeIterationFinishedMapper()`
+
+It is important to follow this structure so that [mypy](https://www.notion.so/tucuvi/tucuvi-data/domaineventstransformer/-/blob/develop/mypy-lang.org) can check for exhaustiveness and notify us in case we forget to include our mapper in the registry. 
+
+### 3. Test your new mapper
+
+We must not forget good software practices, so we will not include a new mapper without first creating the necessary tests to ensure its functionality. For this, we will create a new file in the `src/mappers/test` folder named `test_<new_mapper_name>.py`. In the tests, we will try to cover at least one positive and one negative case. And any corner cases that we can think of. You can use the existing tests as a guide. To execute all tests you can run `pytest -v` command.
+
+Additionally, this repository is configured to run all tests whenever a MR is open, as well as to verify typing with mypy. You can check the result before opening a MR by executing the following:
+
+`# Check typing mypy
+# Run all unit testspytest -v`
+
+### 4. Create the topics and subscriptions
+
+Update the `scripts/create-subscriptions.sh` and execute the script for the new event.
+
+### 5. ETL Disaster recovery
+
+A small CLI application has been developed to manage errors in the ETL. Currently, the following commands have been implemented:
+
+- 'topics-info': displays information about all topics managed by the ETL
+- 'check-dead-letter-queue': allows showing messages that are in the dead letter queue
+- 'send-missing-messages': Resends messages in the dead letter queues to the ETL. Messages that fail to process are saved as a file in the provided 'path'."
+
+You can check the documentation of the application using the `--help` flag. The flag can also be used for each command individually.
+
+If you want to resend all messages in the dead letter queue:
+
+`python etl.py send-missing-messages https://europe-west1-tucuvi-eu.cloudfunctions.net/domain-event-transformer`
+
+# Generate Data Aggregates
+
+- **Repository**: [Generate Data Aggregates](https://gitlab.com/tucuvi/tucuvi-data/generate-data-aggregates)
+
+## **Overview**
+
+This cloud function is triggered by the **'Export Data Aggregates'** button in the Tucuvi Dashboard. It processes protocol data for each work unit and sends pre-calculated objects to the frontend, enabling CSV generation for all protocols associated with the work unit.
+
+## **Deployment**
+
+Deploy the cloud function to tenants using:
+
+```bash
+./deploy_script.sh
+```
+
+## **Pre-Calculated Data**
+
+The data used is pre-calculated with the repository:
+
+[Calculate Tables](https://gitlab.com/tucuvi/tucuvi-data/calculated-tables)
+
+Efficiently generates protocol-specific data for streamlined export and analysis.
+
+# Calculated Tables
+
+- **Repository**: [Calculated Tables](https://gitlab.com/tucuvi/tucuvi-data/calculated-tables)
+
+This repository contains scripts to generate pre-calculated tables connected to the **'Generate Data Aggregates'** button. 
+
+- **Link to Repository**: [Generate Data Aggregates](https://gitlab.com/tucuvi/tucuvi-data/generate-data-aggregates)
+
+## **Purpose**
+
+The scripts populate the **`dataform_calculated_tables`** dataset in BigQuery, located in the **`tucuvi-dev`** project. Each protocol has an associated table containing details about patient responses and interactions, enabling streamlined access to key metrics and insights.
+
+## **Key Features**
+
+- Automates the creation of calculated tables, reducing manual effort.
+- Integrates seamlessly with the **'Generate Data Aggregates'** button to trigger table generation.
+- Stores protocol-specific patient response data in pre-defined tables within the `dataform_calculated_tables` dataset.
+
+<aside>
+⚠️
+
+NOT DEPLOYED!
+
+</aside>
+
 # Editing data in BQ
 
 When the data stored in the raw tables in BQ is corrupted or we need to update it, there are different approaches. 
@@ -802,6 +912,37 @@ When the data stored in the raw tables in BQ is corrupted or we need to update i
     WHERE action_display = 'Re-ingreso hospital'
     ```
     
+
+# Disaster recovery in BQ
+
+## Deleting BQ table
+
+In case a BQ table is deleted or corrupted and we want to return to a previuos state.
+
+1. Recover the last stable version of the table:
+
+BQ stores historical data of tables for up to 7 days. 
+
+Wan can recover past instances of the table by executing the GCP command:
+
+**`bq cp dataset.table@-3600000 dataseta.table_new`**
+
+[How to Restore Data Accidentally Deleted from Google BigQuery](https://www.owox.com/blog/use-cases/recover-deleted-data-in-google-bigquery/)
+
+1. Execute the quality scripts to identify missing items and upload them:
+
+[Tucuvi Data Quality](https://gitlab.com/tucuvi/tucuvi-data/tucuvi-data-quality)
+
+## Losing data
+
+In case data is lost, Dataform uses a logic to manage duplicates where uploading updated data to the BQ tables will solve the issue. 
+
+Find or create scripts to load data from Firestore into BQ. In Tucuvi Data Quality, find: 
+
+- upload_missing_calls.ipynb
+- upload_missing_conversations.ipynb
+- upload_missing_patients.ipynb
+- upload_llm_classification.ipynb
 
 # Valencia: Gestión de la demanda
 
